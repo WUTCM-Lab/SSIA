@@ -17,35 +17,57 @@ from utils import shard_dis
 import mindspore.numpy as mnp
 
 
-class TrainOneEpoch(nn.Cell):
-    def __init__(self, network, optimizer, grad_clip, margin, size):
-        super(TrainOneEpoch, self).__init__(auto_prefix=False)
-        self.network = network
+class AverageMeter:
+    """Computes and stores the average and current value"""
+
+    def __init__(self, name, fmt=':f', tb_writer=None):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+        self.tb_writer = tb_writer
+        self.cur_step = 1
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+        if self.tb_writer is not None:
+            self.tb_writer.add_scalar(self.name, self.val, self.cur_step)
+        self.cur_step += 1
+
+    def __str__(self):
+        fmtstr = '{name}:{avg' + self.fmt + '}'
+        return fmtstr.format(**self.__dict__)
+
+
+class NetwithLoss(nn.Cell):
+    def __init__(self, network, margin, size):
+        super(NetwithLoss, self).__init__()
         self.loss_fn = TotalLoss(size=size, margin=margin)
-        self.optimizer = optimizer
-        self.grad_clip = grad_clip
-        self.grad_operation = ops.GradOperation(get_by_list=True)
-        self.weights = ParameterTuple(network.trainable_params())
-
-    def construct(self, images, captions):
-
-        predictions = self.network(images, captions)
-        loss = self.loss_fn(*predictions)  
+        self.network = network
         
-        grads = self.grad_operation(self.loss_fn, self.weights)(*predictions) 
-
-        if self.grad_clip is not None:
-            grads = ops.clip_by_global_norm(grads, self.grad_clip)
-
-        self.optimizer(grads)
+    def construct(self, images, captions):
+        predictions = self.network(images, captions)
+        loss = self.loss_fn(*predictions)
         return loss
-    
-def train(train_loader, model, optimizer, epoch, opt={}):
-    train_network = TrainOneEpoch(model, optimizer, opt['optim']['grad_clip'], opt['optim']['margin'], opt['dataset']['batch_size'])
+        
+def train(train_loader, model, epoch, loss_meter, opt={}):
     model.set_train(True)
     for i, data in enumerate(train_loader.create_dict_iterator()):
         start = time.time()
-        loss = train_network(data["image"], data["audio"])
+        loss = model(data["image"], data["audio"])
+        loss_meter.update(loss.asnumpy())
         end = time.time()
         if not i % opt['logs']['print_freq']:
             print(f"Epoch: {epoch}, Step: {i}, Loss: {loss}")
