@@ -61,14 +61,15 @@ class CalculateLoss(nn.Cell):
         self.margin = margin
         
     def construct(self, scores):
-        
-        diagonal = F.reshape(ops.DiagPart()(scores), (self.size, 1))
+        diagonal = ops.ExpandDims()(ops.DiagPart()(scores), 1)
 
-        d1 = ops.BroadcastTo(scores.shape)(diagonal)
-        d2 = ops.Transpose()(d1, (1, 0))
+        d1 = ops.BroadcastTo(scores.shape)(diagonal) # 60, 60
+        d2 = ops.Transpose()(d1, (1, 0)) # 60 60
         
-        cost_s = ops.clip_by_value(self.margin + scores - d1, 0, None)
-        cost_im = ops.clip_by_value(self.margin + scores - d2, 0, None)
+        # cost_s = ops.clip_by_value(self.margin + scores - d1, 0, None)
+        # cost_im = ops.clip_by_value(self.margin + scores - d2, 0, None)
+        cost_s = ops.maximum(self.margin + scores - d1, ops.zeros_like(scores))
+        cost_im = ops.maximum(self.margin + scores - d2, ops.zeros_like(scores))
 
         mask = mnp.eye(scores.shape[0]) > 0.5
         cost_s = ops.MaskedFill()(cost_s, mask, 0.0)
@@ -98,4 +99,3 @@ if __name__ == '__main__':
     loss_fn = NTXentLoss(128)
     loss = loss_fn(zis, zjs)
     print(loss)
-    
