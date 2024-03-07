@@ -123,7 +123,7 @@ def acc_t2i2(input_array):
     return (r1, r5, r10, medr, meanr), (ranks, top1)
 
 
-def shard_dis(images, captions, model, shard_size=60):
+def shard_dis(images, captions, model, shard_size=50):
 
     n_im_shard = (len(images) - 1) // shard_size + 1
     n_cap_shard = (len(captions) - 1) // shard_size + 1
