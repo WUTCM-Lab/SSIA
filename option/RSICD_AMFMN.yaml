@@ -21,8 +21,8 @@ dataset:
     audio_path: './data/rsicd_audios/'
     audio_mat_path: './data/rsicd_mat/'
     vocab_path: 'vocab/rsicd_splits_vocab.json'
-    batch_size: 30
-    batch_size_val: 30
+    batch_size: 20
+    batch_size_val: 20
     workers: 3
 optim:
     epochs: 45
