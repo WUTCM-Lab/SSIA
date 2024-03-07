@@ -9,6 +9,7 @@ import mindspore
 from layers.AMFMN import factory
 import mindspore.nn as nn
 from mindspore import context
+from engine import NetwithLoss, AverageMeter
 
 def generate_random_samples(options):
     # load all anns
@@ -84,9 +85,9 @@ def train(options):
     # Create dataset, model, criterion and optimizer
     train_loader, val_loader = get_loaders(options)
     
-    model = factory(options)
+    f_model = factory(options)
     
-    optimizer = nn.Adam(params=model.trainable_params(), learning_rate=options['optim']['lr'])
+    optimizer = nn.Adam(params=f_model.trainable_params(), learning_rate=options['optim']['lr'])
     
     if options['optim']['resume']:
         pass
@@ -96,10 +97,16 @@ def train(options):
     best_rsum = 0
     best_score = ""
     
+    model = NetwithLoss(f_model, options['optim']['margin'], options['dataset']['batch_size'])
+
+    model = nn.TrainOneStepCell(model, optimizer)
+    
+    loss_meter = AverageMeter('loss')
+    
     for epoch in range(start_epoch, options['optim']['epochs']):
-        engine.train(train_loader, model, optimizer, epoch, options)
+        engine.train(train_loader, model, epoch, loss_meter, options)
         if not epoch % options['logs']['eval_step']:
-            rsum, all_scores = engine.validate(val_loader, model)
+            rsum, all_scores = engine.validate(val_loader, f_model)
             
             is_best = rsum >= best_rsum
             best_rsum = rsum if is_best else best_rsum
@@ -109,6 +116,7 @@ def train(options):
             print(f"Best score: {best_score}")
             print(f"Now  score: {all_scores}")
             mindspore.save_checkpoint(model, options['logs']['ckpt_save_path'] + options['model']['name'] + "_best.ckpt")
+        loss_meter.reset()
  
 def main():
     options = parser_options()
